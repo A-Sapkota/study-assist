@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "engines": {
-    "node": "==20.x"
+    "node": "20.x"
   },
   "dependencies": {
     "next": "16.1.2",
