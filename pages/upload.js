@@ -57,7 +57,8 @@ export default function UploadPage() {
 
       // Get response text first to debug
       const responseText = await response.text();
-      console.log("Response:", responseText);
+      console.log("Response status:", response.status);
+      console.log("Response text:", responseText);
 
       // Try to parse as JSON
       let data;
@@ -65,7 +66,7 @@ export default function UploadPage() {
         data = JSON.parse(responseText);
       } catch (parseError) {
         setError(
-          `Server returned invalid response: ${responseText.substring(0, 200)}`,
+          `Server returned invalid response (${response.status}): ${responseText.substring(0, 300)}`,
         );
         return;
       }
@@ -73,7 +74,11 @@ export default function UploadPage() {
       if (response.ok) {
         setResult(data);
       } else {
-        setError(data.error || "Upload failed");
+        // Show detailed error including details field
+        const errorMsg = data.details
+          ? `${data.error}: ${data.details}`
+          : data.error || "Upload failed";
+        setError(errorMsg);
       }
     } catch (err) {
       setError(`Upload error: ${err.message}`);
