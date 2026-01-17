@@ -1,6 +1,5 @@
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { CosmosClient } = require("@azure/cosmos");
-const Busboy = require("busboy");
 const pdfParse = require("pdf-parse");
 
 module.exports = async function (context, req) {
@@ -8,52 +7,41 @@ module.exports = async function (context, req) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
     },
   };
 
-  // Handle preflight OPTIONS request
-  if (req.method === "OPTIONS") {
-    context.res.status = 200;
-    context.res.body = "";
-    return;
-  }
+  context.log("Upload request received");
 
   if (req.method !== "POST") {
     context.res.status = 405;
-    context.res.body = JSON.stringify({
-      error: "Method not allowed. Use POST.",
-    });
+    context.res.body = JSON.stringify({ error: "Method not allowed" });
     return;
   }
 
   try {
-    // Check if body exists
-    if (!req.body) {
+    const body = req.body;
+
+    if (!body || !body.fileData || !body.fileName) {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ error: "No request body received" });
+      context.res.body = JSON.stringify({
+        error: "Missing required fields: fileData and fileName",
+      });
       return;
     }
 
-    // Parse multipart form data
-    const { file, fileName, contentType } = await parseMultipartForm(req);
+    context.log(`Processing file: ${body.fileName}`);
 
-    if (!file || !fileName) {
-      context.res.status = 400;
-      context.res.body = JSON.stringify({ error: "No file uploaded" });
-      return;
-    }
-
-    context.log(`Processing file: ${fileName}`);
+    // Convert base64 to buffer
+    const fileBuffer = Buffer.from(body.fileData, "base64");
+    const contentType = body.contentType || "application/pdf";
 
     // Extract text from PDF
     let extractedText = "";
     if (contentType === "application/pdf") {
       try {
-        const pdfData = await pdfParse(file);
+        const pdfData = await pdfParse(fileBuffer);
         extractedText = pdfData.text;
-        context.log(`Extracted ${extractedText.length} characters from PDF`);
+        context.log(`Extracted ${extractedText.length} characters`);
       } catch (pdfError) {
         context.log.error("PDF parsing error:", pdfError);
         extractedText = "[PDF text extraction failed]";
@@ -61,34 +49,34 @@ module.exports = async function (context, req) {
     }
 
     // Upload to Blob Storage
-    const blobName = `${Date.now()}-${fileName}`;
-    const blobUrl = await uploadToBlob(file, blobName, contentType);
+    const blobName = `${Date.now()}-${body.fileName}`;
+    const blobUrl = await uploadToBlob(fileBuffer, blobName, contentType);
     context.log(`Uploaded to blob: ${blobUrl}`);
 
     // Save metadata to Cosmos DB
     const documentMetadata = {
       id: `doc-${Date.now()}`,
-      fileName: fileName,
+      fileName: body.fileName,
       blobUrl: blobUrl,
       blobName: blobName,
       contentType: contentType,
       uploadDate: new Date().toISOString(),
       textLength: extractedText.length,
       textPreview: extractedText.substring(0, 500),
-      userId: "default-user", // TODO: Add real user authentication later
+      userId: "default-user",
     };
 
     await saveToCosmosDB(documentMetadata);
-    context.log(`Saved metadata to Cosmos DB: ${documentMetadata.id}`);
+    context.log(`Saved metadata: ${documentMetadata.id}`);
 
-    // Success response
+    // Success
     context.res.status = 200;
     context.res.body = JSON.stringify({
       success: true,
       message: "Document uploaded successfully",
       document: {
         id: documentMetadata.id,
-        fileName: fileName,
+        fileName: body.fileName,
         uploadDate: documentMetadata.uploadDate,
         textLength: extractedText.length,
       },
@@ -103,56 +91,6 @@ module.exports = async function (context, req) {
   }
 };
 
-// Parse multipart form data
-function parseMultipartForm(req) {
-  return new Promise((resolve, reject) => {
-    const busboy = Busboy({
-      headers: {
-        "content-type": req.headers["content-type"],
-      },
-    });
-
-    let fileBuffer = null;
-    let fileName = "";
-    let contentType = "";
-
-    busboy.on("file", (fieldname, file, info) => {
-      fileName = info.filename;
-      contentType = info.mimeType;
-      const chunks = [];
-
-      file.on("data", (chunk) => {
-        chunks.push(chunk);
-      });
-
-      file.on("end", () => {
-        fileBuffer = Buffer.concat(chunks);
-      });
-    });
-
-    busboy.on("finish", () => {
-      resolve({
-        file: fileBuffer,
-        fileName: fileName,
-        contentType: contentType,
-      });
-    });
-
-    busboy.on("error", (error) => {
-      reject(error);
-    });
-
-    // Feed request body to busboy
-    if (req.body) {
-      busboy.write(req.body);
-      busboy.end();
-    } else {
-      reject(new Error("No request body"));
-    }
-  });
-}
-
-// Upload file to Azure Blob Storage
 async function uploadToBlob(fileBuffer, blobName, contentType) {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
   const containerName = "course-materials";
@@ -169,7 +107,6 @@ async function uploadToBlob(fileBuffer, blobName, contentType) {
   return blockBlobClient.url;
 }
 
-// Save document metadata to Cosmos DB
 async function saveToCosmosDB(documentMetadata) {
   const endpoint = process.env.COSMOS_DB_ENDPOINT;
   const key = process.env.COSMOS_DB_KEY;

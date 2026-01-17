@@ -1,5 +1,19 @@
 import { useState } from "react";
 
+// Helper function to convert file to base64
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      // Remove the data:application/pdf;base64, prefix
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -26,15 +40,35 @@ export default function UploadPage() {
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // Convert file to base64
+      const fileData = await fileToBase64(file);
 
-      const response = await fetch("/api/upload-document", {
+      const response = await fetch("/api/upload-simple", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileData: fileData,
+          fileName: file.name,
+          contentType: file.type,
+        }),
       });
 
-      const data = await response.json();
+      // Get response text first to debug
+      const responseText = await response.text();
+      console.log("Response:", responseText);
+
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        setError(
+          `Server returned invalid response: ${responseText.substring(0, 200)}`,
+        );
+        return;
+      }
 
       if (response.ok) {
         setResult(data);
