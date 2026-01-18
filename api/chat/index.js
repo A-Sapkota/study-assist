@@ -73,10 +73,18 @@ module.exports = async function (context, req) {
       .join("\n\n");
 
     // Step 4: Call Azure OpenAI with the context
-    context.log("Calling OpenAI with context length:", contextText.length);
+    context.log("=== Calling OpenAI ===");
+    context.log("Question:", question);
+    context.log("Context length:", contextText.length);
+    context.log("Context preview:", contextText.substring(0, 200));
     const answer = await getAIAnswer(question, contextText);
-    context.log("Received answer:", answer);
+    context.log("=== OpenAI Returned ===");
+    context.log("Answer:", answer);
+    context.log("Answer type:", typeof answer);
     context.log("Answer length:", answer?.length);
+    context.log("Answer is empty?", answer === "");
+    context.log("Answer is null?", answer === null);
+    context.log("Answer is undefined?", answer === undefined);
 
     // Step 5: Extract unique sources
     const sources = [...new Set(relevantChunks.map((c) => c.fileName))];
@@ -217,8 +225,22 @@ async function getAIAnswer(question, contextText) {
 
   const result = await client.chat.completions.create({
     messages,
-    max_completion_tokens: 500,
+    max_tokens: 500,
   });
 
-  return result.choices?.[0]?.message?.content ?? "";
+  context.log("=== OpenAI Response Debug ===");
+  context.log("Full result:", JSON.stringify(result, null, 2));
+  context.log("Choices array:", result.choices);
+  context.log("Choices length:", result.choices?.length);
+  context.log("First choice:", result.choices?.[0]);
+  context.log("Message:", result.choices?.[0]?.message);
+  context.log("Content:", result.choices?.[0]?.message?.content);
+  context.log("Content type:", typeof result.choices?.[0]?.message?.content);
+  context.log("Content length:", result.choices?.[0]?.message?.content?.length);
+  context.log("=== End Debug ===");
+
+  const responseContent = result.choices?.[0]?.message?.content ?? "";
+  context.log("Final response content:", responseContent);
+
+  return responseContent;
 }

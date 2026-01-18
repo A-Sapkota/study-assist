@@ -47,22 +47,30 @@ export default function ChatPage() {
       }
 
       if (response.ok) {
+        console.log("Full API response:", data);
+        console.log("Answer:", data.answer);
+        console.log("Answer length:", data.answer?.length);
+
         // Add AI response to chat
+        const answerText = data.answer || "[No answer received from AI]";
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: data.answer,
+            content: answerText,
             sources: data.sources || [],
             chunksUsed: data.chunksUsed,
           },
         ]);
       } else {
+        const errorMsg = data.details
+          ? `${data.error}: ${data.details}`
+          : data.error || "Failed to get answer";
         setMessages((prev) => [
           ...prev,
           {
             role: "error",
-            content: `Error: ${data.error || "Failed to get answer"}`,
+            content: errorMsg,
           },
         ]);
       }
