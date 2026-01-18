@@ -63,6 +63,7 @@ module.exports = async function (context, req) {
       uploadDate: new Date().toISOString(),
       textLength: extractedText.length,
       textPreview: extractedText.substring(0, 500),
+      fullText: extractedText, // Store complete text
       userId: "default-user",
     };
 

@@ -29,6 +29,8 @@ module.exports = async function (context, req) {
     // Step 1: Retrieve all user's documents from Cosmos DB
     const documents = await getUserDocuments(userId);
 
+    context.log(`Documents found: ${documents.length}`);
+
     if (documents.length === 0) {
       context.res.status = 200;
       context.res.body = JSON.stringify({
@@ -40,9 +42,19 @@ module.exports = async function (context, req) {
     }
 
     context.log(`Found ${documents.length} documents`);
+    documents.forEach((doc) => {
+      context.log(
+        `- ${doc.fileName}: ${doc.textLength} chars, preview: ${doc.textPreview?.length || 0} chars`,
+      );
+    });
 
     // Step 2: Search for relevant content (simple keyword matching for now)
     const relevantChunks = searchDocuments(documents, question);
+
+    context.log(`Relevant chunks found: ${relevantChunks.length}`);
+    relevantChunks.forEach((chunk) => {
+      context.log(`- ${chunk.fileName}: score ${chunk.score}`);
+    });
 
     if (relevantChunks.length === 0) {
       context.res.status = 200;
@@ -105,33 +117,64 @@ function searchDocuments(documents, question) {
   const questionWords = question
     .toLowerCase()
     .split(" ")
-    .filter((w) => w.length > 3);
+    .filter((w) => w.length > 2);
   const results = [];
 
   for (const doc of documents) {
-    if (!doc.textPreview) continue;
+    // Use fullText if available, otherwise fall back to textPreview
+    const textToSearch = doc.fullText || doc.textPreview || "";
 
-    const text = doc.textPreview.toLowerCase();
+    if (!textToSearch) continue;
+
+    const text = textToSearch.toLowerCase();
     let relevanceScore = 0;
 
-    // Count matching keywords
+    // Count matching keywords (more lenient)
     for (const word of questionWords) {
-      if (text.includes(word)) {
-        relevanceScore++;
+      // Check if the word appears anywhere in the text
+      const regex = new RegExp(word, "gi");
+      const matches = text.match(regex);
+      if (matches) {
+        relevanceScore += matches.length;
       }
     }
 
-    if (relevanceScore > 0) {
-      results.push({
-        fileName: doc.fileName,
-        text: doc.textPreview,
-        score: relevanceScore,
-      });
+    // For full text documents, extract relevant snippets around matches
+    let relevantText = textToSearch;
+    if (doc.fullText && relevanceScore > 0) {
+      // Find the first occurrence of the best matching word
+      const bestWord = questionWords.find((w) =>
+        text.includes(w.toLowerCase()),
+      );
+      if (bestWord) {
+        const index = text.indexOf(bestWord.toLowerCase());
+        const start = Math.max(0, index - 500);
+        const end = Math.min(textToSearch.length, index + 1500);
+        relevantText = textToSearch.substring(start, end);
+      } else {
+        // If no direct match, take first 2000 chars
+        relevantText = textToSearch.substring(0, 2000);
+      }
     }
+
+    // Always include documents even with low scores
+    results.push({
+      fileName: doc.fileName,
+      text: relevantText,
+      score: relevanceScore,
+      hasFullText: !!doc.fullText,
+    });
   }
 
-  // Sort by relevance and return top 3
+  // Sort by relevance
   results.sort((a, b) => b.score - a.score);
+
+  // Return all documents if search score is low (fallback behavior)
+  if (results.length > 0 && results[0].score < 2) {
+    // If best match has very low score, return all documents anyway
+    return results;
+  }
+
   return results.slice(0, 3);
 }
 
