@@ -206,7 +206,7 @@ Answer (be concise and cite which sources you used):`;
       { role: "user", content: prompt },
     ],
     {
-      maxTokens: 500,
+      maxCompletionTokens: 500,
       temperature: 0.7,
     },
   );
