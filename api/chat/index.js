@@ -73,7 +73,10 @@ module.exports = async function (context, req) {
       .join("\n\n");
 
     // Step 4: Call Azure OpenAI with the context
+    context.log("Calling OpenAI with context length:", contextText.length);
     const answer = await getAIAnswer(question, contextText);
+    context.log("Received answer:", answer);
+    context.log("Answer length:", answer?.length);
 
     // Step 5: Extract unique sources
     const sources = [...new Set(relevantChunks.map((c) => c.fileName))];
@@ -180,38 +183,42 @@ function searchDocuments(documents, question) {
 }
 
 // Get answer from Azure OpenAI
-async function getAIAnswer(question, context) {
+async function getAIAnswer(question, contextText) {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_KEY;
-  const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+  const apiVersion =
+    process.env.AZURE_OPENAI_API_VERSION || "2024-04-01-preview";
+
+  if (!endpoint || !apiKey || !deployment) {
+    throw new Error(
+      "Missing AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, or AZURE_OPENAI_DEPLOYMENT_NAME",
+    );
+  }
 
   const client = new AzureOpenAI({
-    endpoint: endpoint,
-    apiKey: apiKey,
-    apiVersion: "2024-08-01-preview",
+    endpoint,
+    apiKey,
+    apiVersion,
+    deployment, // sets the default deployment
   });
 
-  const prompt = `You are a helpful study assistant. Answer the student's question based ONLY on the provided context from their course materials. If the answer is not in the context, say so.
-
-Context from uploaded documents:
-${context}
-
-Student's Question: ${question}
-
-Answer (be concise and cite which sources you used):`;
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You are a helpful study assistant. Answer using ONLY the provided context. If the answer is not in the context, say you cannot find it.",
+    },
+    {
+      role: "user",
+      content: `Context from uploaded documents:\n${contextText}\n\nStudent's Question: ${question}\n\nAnswer concisely and cite sources by filename when relevant.`,
+    },
+  ];
 
   const result = await client.chat.completions.create({
-    model: deploymentName,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a helpful study assistant that answers questions based on course materials.",
-      },
-      { role: "user", content: prompt },
-    ],
-    max_completion_tokens: 500,
+    messages,
+    max_tokens: 500,
   });
 
-  return result.choices[0].message.content;
+  return result.choices?.[0]?.message?.content ?? "";
 }
