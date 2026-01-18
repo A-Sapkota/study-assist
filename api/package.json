@@ -9,7 +9,7 @@
   "dependencies": {
     "@azure/storage-blob": "^12.17.0",
     "@azure/cosmos": "^4.0.0",
-    "@azure/openai": "^1.0.0-beta.12",
+    "@azure/openai": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "busboy": "^1.6.0"
   },
