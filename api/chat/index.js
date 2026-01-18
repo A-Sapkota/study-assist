@@ -1,4 +1,5 @@
-const { OpenAIClient } = require("@azure/openai");
+const OpenAI = require("openai");
+const { AzureOpenAI } = OpenAI;
 const { CosmosClient } = require("@azure/cosmos");
 
 module.exports = async function (context, req) {
@@ -184,7 +185,11 @@ async function getAIAnswer(question, context) {
   const apiKey = process.env.AZURE_OPENAI_KEY;
   const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 
-  const client = new OpenAIClient(endpoint, { key: apiKey });
+  const client = new AzureOpenAI({
+    endpoint: endpoint,
+    apiKey: apiKey,
+    apiVersion: "2024-08-01-preview",
+  });
 
   const prompt = `You are a helpful study assistant. Answer the student's question based ONLY on the provided context from their course materials. If the answer is not in the context, say so.
 
@@ -195,9 +200,9 @@ Student's Question: ${question}
 
 Answer (be concise and cite which sources you used):`;
 
-  const result = await client.getChatCompletions(
-    deploymentName,
-    [
+  const result = await client.chat.completions.create({
+    model: deploymentName,
+    messages: [
       {
         role: "system",
         content:
@@ -205,11 +210,8 @@ Answer (be concise and cite which sources you used):`;
       },
       { role: "user", content: prompt },
     ],
-    {
-      maxCompletionTokens: 500,
-      // Temperature removed - gpt-5-nano only supports default (1)
-    },
-  );
+    max_completion_tokens: 500,
+  });
 
   return result.choices[0].message.content;
 }
