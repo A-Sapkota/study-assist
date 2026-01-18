@@ -28,7 +28,23 @@ export default function ChatPage() {
         }),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log("Response status:", response.status);
+      console.log("Response text:", responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "error",
+            content: `Server error (${response.status}): ${responseText.substring(0, 500)}`,
+          },
+        ]);
+        return;
+      }
 
       if (response.ok) {
         // Add AI response to chat
