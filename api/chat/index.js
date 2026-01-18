@@ -217,7 +217,7 @@ async function getAIAnswer(question, contextText) {
 
   const result = await client.chat.completions.create({
     messages,
-    max_tokens: 500,
+    max_completion_tokens: 500,
   });
 
   return result.choices?.[0]?.message?.content ?? "";
