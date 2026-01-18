@@ -68,16 +68,16 @@ module.exports = async function (context, req) {
     }
 
     // Step 3: Build context from relevant chunks
-    const contextText = relevantChunks
+    const documentContext = relevantChunks
       .map((chunk, i) => `[Source ${i + 1}: ${chunk.fileName}]\n${chunk.text}`)
       .join("\n\n");
 
     // Step 4: Call Azure OpenAI with the context
     context.log("=== Calling OpenAI ===");
     context.log("Question:", question);
-    context.log("Context length:", contextText.length);
-    context.log("Context preview:", contextText.substring(0, 200));
-    const answer = await getAIAnswer(question, contextText);
+    context.log("Context length:", documentContext.length);
+    context.log("Context preview:", documentContext.substring(0, 200));
+    const answer = await getAIAnswer(question, documentContext, context);
     context.log("=== OpenAI Returned ===");
     context.log("Answer:", answer);
     context.log("Answer type:", typeof answer);
@@ -191,7 +191,7 @@ function searchDocuments(documents, question) {
 }
 
 // Get answer from Azure OpenAI
-async function getAIAnswer(question, contextText) {
+async function getAIAnswer(question, documentContext, context) {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const apiKey = process.env.AZURE_OPENAI_KEY;
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
@@ -219,7 +219,7 @@ async function getAIAnswer(question, contextText) {
     },
     {
       role: "user",
-      content: `Context from uploaded documents:\n${contextText}\n\nStudent's Question: ${question}\n\nAnswer concisely and cite sources by filename when relevant.`,
+      content: `Context from uploaded documents:\n${documentContext}\n\nStudent's Question: ${question}\n\nAnswer concisely and cite sources by filename when relevant.`,
     },
   ];
 
