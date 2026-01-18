@@ -1,4 +1,4 @@
-const { OpenAIClient, AzureKeyCredential } = require("@azure/openai");
+const { OpenAIClient } = require("@azure/openai");
 const { CosmosClient } = require("@azure/cosmos");
 
 module.exports = async function (context, req) {
@@ -184,7 +184,7 @@ async function getAIAnswer(question, context) {
   const apiKey = process.env.AZURE_OPENAI_KEY;
   const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 
-  const client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey));
+  const client = new OpenAIClient(endpoint, { key: apiKey });
 
   const prompt = `You are a helpful study assistant. Answer the student's question based ONLY on the provided context from their course materials. If the answer is not in the context, say so.
 
@@ -207,7 +207,7 @@ Answer (be concise and cite which sources you used):`;
     ],
     {
       maxCompletionTokens: 500,
-      temperature: 0.7,
+      // Temperature removed - gpt-5-nano only supports default (1)
     },
   );
 
