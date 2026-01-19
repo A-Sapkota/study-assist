@@ -154,18 +154,19 @@ function searchDocuments(documents, question) {
     // For full text documents, extract relevant snippets around matches
     let relevantText = textToSearch;
     if (doc.fullText && relevanceScore > 0) {
-      // Find the first occurrence of the best matching word
+      // Find the best matching keyword and extract a larger context around it
       const bestWord = questionWords.find((w) =>
         text.includes(w.toLowerCase()),
       );
       if (bestWord) {
         const index = text.indexOf(bestWord.toLowerCase());
-        const start = Math.max(0, index - 500);
-        const end = Math.min(textToSearch.length, index + 1500);
+        // Extract 1000 chars before and 4000 chars after for better context
+        const start = Math.max(0, index - 1000);
+        const end = Math.min(textToSearch.length, index + 4000);
         relevantText = textToSearch.substring(start, end);
       } else {
-        // If no direct match, take first 2000 chars
-        relevantText = textToSearch.substring(0, 2000);
+        // If no direct match, take first 5000 chars
+        relevantText = textToSearch.substring(0, 5000);
       }
     }
 
@@ -181,12 +182,7 @@ function searchDocuments(documents, question) {
   // Sort by relevance
   results.sort((a, b) => b.score - a.score);
 
-  // Return all documents if search score is low (fallback behavior)
-  if (results.length > 0 && results[0].score < 2) {
-    // If best match has very low score, return all documents anyway
-    return results;
-  }
-
+  // Return top 3 results with most context
   return results.slice(0, 3);
 }
 
@@ -204,12 +200,19 @@ async function getAIAnswer(question, documentContext, context) {
     );
   }
 
+  context.log("=== Creating OpenAI client ===");
+  context.log("Endpoint:", endpoint);
+  context.log("Deployment:", deployment);
+  context.log("API Version:", apiVersion);
+
   const client = new AzureOpenAI({
     endpoint,
     apiKey,
     apiVersion,
     deployment, // sets the default deployment
   });
+
+  context.log("Client created successfully");
 
   const messages = [
     {
@@ -223,10 +226,15 @@ async function getAIAnswer(question, documentContext, context) {
     },
   ];
 
+  context.log("=== Sending request to OpenAI ===");
+  context.log("Messages:", JSON.stringify(messages, null, 2));
+
   const result = await client.chat.completions.create({
     messages,
-    max_completion_tokens: 2000,
+    max_completion_tokens: 3000, // Increased for more comprehensive answers with reasoning
   });
+
+  context.log("=== Request completed ===");
 
   context.log("=== OpenAI Response Debug ===");
   context.log("Full result:", JSON.stringify(result, null, 2));
