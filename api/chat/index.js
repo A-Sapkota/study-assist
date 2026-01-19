@@ -225,7 +225,8 @@ async function getAIAnswer(question, documentContext, context) {
 
   const result = await client.chat.completions.create({
     messages,
-    max_completion_tokens: 500,
+    max_completion_tokens: 800,
+    reasoning: { effort: "minimal" },
   });
 
   context.log("=== OpenAI Response Debug ===");

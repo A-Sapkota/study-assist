@@ -52,7 +52,7 @@ module.exports = async function (context, req) {
           content: "Say 'Hello, this is a test!' and nothing else.",
         },
       ],
-      max_tokens: 50,
+      max_completion_tokens: 50,
     });
 
     context.log("Response received!");
